@@ -78,7 +78,7 @@ def compute_pnl(price_path, signals):
             shares -= 1
             cash += price_path[i]
     total_value = cash + shares * price_path[-1]
-    return total_value - 10000  # return P&L
+    return total_value - 10000  
 
 # Run simulations
 final_pnls = []
@@ -113,3 +113,57 @@ mean_peaceful_pnl = np.mean(peaceful_final_pnls)
 std_peaceful_pnl = np.std(peaceful_final_pnls)
 print(f"Mean P&L under peaceful conditions: {mean_peaceful_pnl}")
 print(f"Standard Deviation of P&L under peaceful conditions: {std_peaceful_pnl}")
+
+import os
+import matplotlib.pyplot as plt
+
+os.makedirs("outputs/tables", exist_ok=True)
+os.makedirs("outputs/figures", exist_ok=True)
+
+# One summary table (clean)
+summary_df = pd.DataFrame([
+    {
+        "Regime": "Wartime",
+        "Mean_PnL": float(mean_pnl),
+        "Std_PnL": float(std_pnl),
+        "PnL_5pct": float(np.percentile(wartime_pnls, 5)),
+        "PnL_95pct": float(np.percentile(wartime_pnls, 95)),
+    },
+    {
+        "Regime": "Peaceful",
+        "Mean_PnL": float(mean_peaceful_pnl),
+        "Std_PnL": float(std_peaceful_pnl),
+        "PnL_5pct": float(np.percentile(peaceful_final_pnls, 5)),
+        "PnL_95pct": float(np.percentile(peaceful_final_pnls, 95)),
+    }
+])
+
+summary_df.to_csv("outputs/tables/pnl_summary.csv", index=False)
+print("\nSaved outputs/tables/pnl_summary.csv")
+print(summary_df)
+
+# Save histogram figure
+plt.figure()
+plt.hist(wartime_pnls, bins=30, alpha=0.5, label="Wartime P&L")
+plt.hist(peaceful_final_pnls, bins=30, alpha=0.5, label="Peaceful P&L")
+plt.xlabel("P&L")
+plt.ylabel("Frequency")
+plt.title("P&L Distribution: Wartime vs Peaceful Conditions")
+plt.legend()
+plt.savefig("outputs/figures/pnl_hist_overlay.png", bbox_inches="tight")
+plt.close()
+print("Saved outputs/figures/pnl_hist_overlay.png")
+
+# Calculate Rolling volatility (21 day, annualized) and plot it
+wartime_rolling_vol = wartime_returns.rolling(window=21).std() * np.sqrt(252)
+peaceful_rolling_vol = peaceful_returns.rolling(window=21).std() * np.sqrt(252)
+plt.figure()
+plt.plot(wartime_rolling_vol, label="Wartime Rolling Volatility")
+plt.plot(peaceful_rolling_vol, label="Peaceful Rolling Volatility")
+plt.xlabel("Date")
+plt.ylabel("Annualized Volatility")
+plt.title("21-Day Rolling Volatility: Wartime vs Peaceful Conditions")
+plt.legend()
+plt.savefig("outputs/figures/rolling_volatility.png", bbox_inches="tight")
+plt.close()
+print("Saved outputs/figures/rolling_volatility.png")
