@@ -1,0 +1,115 @@
+import pandas as pd
+import numpy as np
+ 
+wartime_period = pd.read_csv("LMT_conflict_2002_2004.csv")
+peaceful_period = pd.read_csv("LMT_normal_1999_2001.csv")
+
+# drop the first two metadata rows and keep real data rows only
+wartime_period = wartime_period[wartime_period["Price"].astype(str).str.match(r"^\d{4}-\d{2}-\d{2}$")].copy()
+peaceful_period = peaceful_period[peaceful_period["Price"].astype(str).str.match(r"^\d{4}-\d{2}-\d{2}$")].copy()
+
+wartime_period["Date"] = pd.to_datetime(wartime_period["Price"])
+peaceful_period["Date"] = pd.to_datetime(peaceful_period["Price"])
+
+wartime_period["Close"] = pd.to_numeric(wartime_period["Close"], errors="coerce")
+peaceful_period["Close"] = pd.to_numeric(peaceful_period["Close"], errors="coerce")
+
+wartime_period = wartime_period.drop(columns=["Price"]).set_index("Date").sort_index()
+peaceful_period = peaceful_period.drop(columns=["Price"]).set_index("Date").sort_index()
+
+# Calculate daily returns
+wartime_returns = wartime_period['Close'].pct_change().dropna()
+peaceful_returns = peaceful_period['Close'].pct_change().dropna()
+
+# Calculate mean and standard deviation of returns
+wartime_mean = wartime_returns.mean()
+wartime_std = wartime_returns.std()
+peaceful_mean = peaceful_returns.mean()
+peaceful_std = peaceful_returns.std()
+
+# Define simulation parameters
+num_simulations = 1000
+num_days = 252  # Number of trading days in a year
+initial_price = wartime_period['Close'].iloc[-1]
+
+# Define random walk simulation function
+def simulate_price_path(initial_price, mean_return, std_dev, num_days):
+    daily_returns = np.random.normal(loc=mean_return, scale=std_dev, size=num_days)
+    price_path = initial_price * np.exp(np.cumsum(daily_returns))
+    return price_path
+
+# Define price dynamics such that next price equals current price times exponential of drift times + volatility times shock
+def price_dynamics(current_price, drift, volatility, shock):
+    return current_price * np.exp(drift + volatility * shock)
+
+# Simulate price path 
+simulated_price_path = [initial_price]
+for day in range(1, num_days):
+    shock = np.random.normal()
+    next_price = price_dynamics(simulated_price_path[-1], wartime_mean, wartime_std, shock)
+    simulated_price_path.append(next_price)
+
+# Define trading strategy such that 
+    #  observe price history 
+    # create a signal based on past returns 
+    # covert signal into buy/sell decisions
+    # apply constraints 
+def trading_strategy(price_history):
+    signals = []
+    for i in range(1, len(price_history)):
+        if price_history[i] > price_history[i-1]:
+            signals.append("BUY")
+        else:
+            signals.append("SELL")
+    return signals
+
+# Compute P&L  
+    # Track number of shares held and cash balance
+    # update portfolio value based on price changes and trading decisions
+    # at final time calculate total portfolio value 
+def compute_pnl(price_path, signals):  
+    cash = 10000  # initial cash
+    shares = 0
+    for i in range(1, len(price_path)):
+        if signals[i-1] == "BUY" and cash >= price_path[i]:
+            shares += 1
+            cash -= price_path[i]
+        elif signals[i-1] == "SELL" and shares > 0:
+            shares -= 1
+            cash += price_path[i]
+    total_value = cash + shares * price_path[-1]
+    return total_value - 10000  # return P&L
+
+# Run simulations
+final_pnls = []
+for _ in range(num_simulations):
+    simulated_path = simulate_price_path(initial_price, wartime_mean, wartime_std, num_days)
+    signals = trading_strategy(simulated_path)
+    pnl = compute_pnl(simulated_path, signals)
+    final_pnls.append(pnl)
+
+# Analyze results
+final_pnls = np.array(final_pnls)
+mean_pnl = np.mean(final_pnls)
+std_pnl = np.std(final_pnls)
+print(f"Mean P&L from simulations: {mean_pnl}")
+print(f"Standard Deviation of P&L from simulations: {std_pnl}")
+
+# Compare regimes
+# Profit distributions under wartime and peaceful conditions
+# Risk characteristics
+# Tail outcomes 
+wartime_pnls = final_pnls
+peaceful_final_pnls = []
+for _ in range(num_simulations):
+    simulated_path = simulate_price_path(initial_price, peaceful_mean, peaceful_std, num_days)
+    signals = trading_strategy(simulated_path)
+    pnl = compute_pnl(simulated_path, signals)
+    peaceful_final_pnls.append(pnl)
+
+# Report Results
+peaceful_final_pnls = np.array(peaceful_final_pnls)
+mean_peaceful_pnl = np.mean(peaceful_final_pnls)
+std_peaceful_pnl = np.std(peaceful_final_pnls)
+print(f"Mean P&L under peaceful conditions: {mean_peaceful_pnl}")
+print(f"Standard Deviation of P&L under peaceful conditions: {std_peaceful_pnl}")
